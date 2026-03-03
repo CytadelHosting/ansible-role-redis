@@ -8,6 +8,16 @@
     redis_package: "{{ __redis_package }}"
   when: redis_package is not defined
 
+# Setup/install tasks first.
+- include_tasks: setup-RedHat.yml
+  when: ansible_facts.os_family == 'RedHat'
+
+- include_tasks: setup-Debian.yml
+  when: ansible_facts.os_family == 'Debian'
+
+- include_tasks: setup-Archlinux.yml
+  when: ansible_facts.os_family == 'Archlinux'
+
 - name: Ensure Redis configuration dir exists.
   file:
     path: "{{ redis_conf_path | dirname }}"
@@ -21,15 +31,55 @@
     mode: "{{ redis_conf_mode }}"
   notify: restart redis
 
-# Setup/install tasks.
-- include_tasks: setup-RedHat.yml
-  when: ansible_facts.os_family == 'RedHat'
+- name: Ensure Redis system tuning sysctl file is present.
+  template:
+    src: redis-sysctl.conf.j2
+    dest: /etc/sysctl.d/99-redis.conf
+    mode: "0644"
+  when: redis_manage_system_tuning
+  notify: reload sysctl
 
-- include_tasks: setup-Debian.yml
-  when: ansible_facts.os_family == 'Debian'
+- name: Ensure THP disable systemd unit is present.
+  template:
+    src: disable-transparent-huge-pages.service.j2
+    dest: /etc/systemd/system/disable-transparent-huge-pages.service
+    mode: "0644"
+  when:
+    - redis_manage_system_tuning
+    - redis_disable_thp
+    - ansible_service_mgr == "systemd"
+  notify: systemd daemon reload
 
-- include_tasks: setup-Archlinux.yml
-  when: ansible_facts.os_family == 'Archlinux'
+- name: Ensure THP disable service is enabled and started.
+  service:
+    name: disable-transparent-huge-pages
+    state: started
+    enabled: true
+  when:
+    - redis_manage_system_tuning
+    - redis_disable_thp
+    - ansible_service_mgr == "systemd"
+
+- name: Ensure Redis systemd drop-in directory exists.
+  file:
+    path: "/etc/systemd/system/{{ redis_daemon }}.service.d"
+    state: directory
+    mode: "0755"
+  when:
+    - redis_manage_systemd_override
+    - ansible_service_mgr == "systemd"
+
+- name: Ensure Redis systemd override is present.
+  template:
+    src: redis-systemd-override.conf.j2
+    dest: "/etc/systemd/system/{{ redis_daemon }}.service.d/override.conf"
+    mode: "0644"
+  when:
+    - redis_manage_systemd_override
+    - ansible_service_mgr == "systemd"
+  notify:
+    - systemd daemon reload
+    - restart redis
 
 - name: Ensure Redis is running.
   service:

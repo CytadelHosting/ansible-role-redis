@@ -1,15 +1,92 @@
 # {{ ansible_managed }}
 
-daemonize yes
-pidfile /var/run/redis/{{ redis_daemon }}.pid
-port {{ redis_port }}
-bind {{ redis_bind_interface }}
+##################################
+# Process / reseau / securite
+##################################
 
-{% if redis_unixsocket %}
-unixsocket {{ redis_unixsocket }}
+daemonize {{ redis_daemonize }}
+pidfile {{ redis_pidfile | default('/var/run/redis/' ~ redis_daemon ~ '.pid', true) }}
+
+# Mode TCP
+port {{ redis_port }}
+{% if redis_bind_interface is string %}
+bind {{ redis_bind_interface }}
+{% else %}
+bind {{ redis_bind_interface | join(' ') }}
 {% endif %}
 
+{% if redis_unixsocket %}
+# UNIX socket (plus rapide pour les applis locales)
+unixsocket {{ redis_unixsocket }}
+unixsocketperm {{ redis_unixsocketperm }}
+{% endif %}
+
+protected-mode {{ redis_protected_mode }}
+
+##################################
+# Performance
+##################################
+
+tcp-backlog {{ redis_tcp_backlog }}
 timeout {{ redis_timeout }}
+tcp-keepalive {{ redis_tcp_keepalive }}
+hz {{ redis_hz }}
+dynamic-hz {{ redis_dynamic_hz }}
+
+##################################
+# Securite applicative
+##################################
+
+{% if redis_acl_users | length > 0 %}
+{% for redis_acl_user in redis_acl_users %}
+{{ redis_acl_user }}
+{% endfor %}
+{% elif redis_requirepass %}
+# Fallback legacy si ACL n'est pas utilise.
+requirepass {{ redis_requirepass }}
+{% endif %}
+
+{% for redis_disabled_command in redis_disabled_commands %}
+rename-command {{ redis_disabled_command }} ""
+{% endfor %}
+
+##################################
+# Memoire / eviction
+##################################
+
+maxmemory {{ redis_maxmemory }}
+maxmemory-policy {{ redis_maxmemory_policy }}
+maxmemory-samples {{ redis_maxmemory_samples }}
+lazyfree-lazy-eviction {{ redis_lazyfree_lazy_eviction }}
+lazyfree-lazy-expire {{ redis_lazyfree_lazy_expire }}
+lazyfree-lazy-server-del {{ redis_lazyfree_lazy_server_del }}
+lazyfree-lazy-user-del {{ redis_lazyfree_lazy_user_del }}
+activedefrag {{ redis_activedefrag }}
+
+##################################
+# Persistance
+##################################
+
+{% if redis_save | length > 0 %}
+{% for save in redis_save %}
+save {{ save }}
+{% endfor %}
+{% else %}
+save ""
+{% endif %}
+
+rdbcompression {{ redis_rdbcompression }}
+dbfilename {{ redis_dbfilename }}
+dir {{ redis_dbdir }}
+appendonly {{ redis_appendonly }}
+appendfsync {{ redis_appendfsync }}
+auto-aof-rewrite-percentage {{ redis_auto_aof_rewrite_percentage }}
+auto-aof-rewrite-min-size {{ redis_auto_aof_rewrite_min_size }}
+no-appendfsync-on-rewrite no
+
+##################################
+# Logs
+##################################
 
 loglevel {{ redis_loglevel }}
 logfile {{ redis_logfile }}
@@ -22,36 +99,8 @@ logfile {{ redis_logfile }}
 
 databases {{ redis_databases }}
 
-{% for save in redis_save %}
-save {{ save }}
-{% endfor %}
-
-rdbcompression {{ redis_rdbcompression }}
-dbfilename {{ redis_dbfilename }}
-dir {{ redis_dbdir }}
-
-# maxclients 128
-
-{% if redis_maxmemory %}
-maxmemory {{ redis_maxmemory }}
-maxmemory-policy {{ redis_maxmemory_policy }}
-maxmemory-samples {{ redis_maxmemory_samples }}
-{% endif %}
-
-appendonly {{ redis_appendonly }}
-appendfsync {{ redis_appendfsync }}
-no-appendfsync-on-rewrite no
-
 {% for include in redis_includes %}
 include {{ include }}
-{% endfor %}
-
-{% if redis_requirepass %}
-requirepass {{ redis_requirepass }}
-{% endif %}
-
-{% for redis_disabled_command in redis_disabled_commands %}
-rename-command {{ redis_disabled_command }} ""
 {% endfor %}
 
 {{ redis_extra_config }}

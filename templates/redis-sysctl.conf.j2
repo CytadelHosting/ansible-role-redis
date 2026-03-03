@@ -1,0 +1,5 @@
+# {{ ansible_managed }}
+# Kernel tuning dedicated to Redis workloads.
+{% for redis_sysctl_key, redis_sysctl_value in redis_sysctl_settings | dictsort %}
+{{ redis_sysctl_key }} = {{ redis_sysctl_value }}
+{% endfor %}

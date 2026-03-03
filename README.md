@@ -24,21 +24,37 @@ redis_enabled: true
 
 If unset, Redis will not start at boot.
 
+### Modern defaults profile
+
+The role now ships with a more modern baseline for cache/session workloads:
+
+- `protected-mode yes`
+- Unix socket enabled by default (`/run/redis/redis.sock`)
+- safer command renaming defaults (`FLUSHALL`, `FLUSHDB`, `CONFIG`, `SHUTDOWN`)
+- `maxmemory 1gb` with `volatile-lru`
+- AOF enabled (`appendonly yes`, `appendfsync everysec`)
+
 ```yaml
 redis_port: 6379
 redis_bind_interface: 127.0.0.1
+redis_protected_mode: "yes"
 ```
 
 Port and interface on which Redis will listen. Set the interface to `0.0.0.0` to listen on all interfaces.
 
 ```yaml
-redis_unixsocket: ''
+redis_unixsocket: /run/redis/redis.sock
+redis_unixsocketperm: "770"
 ```
 
 If set, Redis will also listen on a local Unix socket.
 
 ```yaml
-redis_timeout: 300
+redis_timeout: 0
+redis_tcp_backlog: 511
+redis_tcp_keepalive: 300
+redis_hz: 10
+redis_dynamic_hz: "yes"
 ```
 
 Close a connection after a client is idle `N` seconds. Set to `0` to disable timeout.
@@ -57,11 +73,9 @@ redis_databases: 16
 The number of Redis databases.
 
 ```yaml
-# Set to an empty set to disable persistence (saving the DB to disk).
+# Set to an empty list to disable RDB persistence.
 redis_save:
-  - 900 1
-  - 300 10
-  - 60 10000
+  - '""'
 ```
 
 Snapshotting configuration; setting values in this list will save the database to disk if the given number of seconds (e.g. `900`) and the given number of write operations (e.g. `1`) have occurred.
@@ -75,13 +89,13 @@ redis_dbdir: /var/lib/redis
 Database compression and location configuration.
 
 ```yaml
-    redis_maxmemory: 0
+redis_maxmemory: 1gb
 ```
 
 Limit memory usage to the specified amount of bytes. Leave at 0 for unlimited.
 
 ```yaml
-redis_maxmemory_policy: "noeviction"
+redis_maxmemory_policy: "volatile-lru"
 ```
 
 The method to use to keep memory usage below the limit, if specified. See [Using Redis as an LRU cache](http://redis.io/topics/lru-cache).
@@ -93,13 +107,15 @@ redis_maxmemory_samples: 5
 Number of samples to use to approximate LRU. See [Using Redis as an LRU cache](http://redis.io/topics/lru-cache).
 
 ```yaml
-redis_appendonly: "no"
+redis_appendonly: "yes"
 ```
 
 The appendonly option, if enabled, affords better data durability guarantees, at the cost of slightly slower performance.
 
 ```yaml
 redis_appendfsync: "everysec"
+redis_auto_aof_rewrite_percentage: 100
+redis_auto_aof_rewrite_min_size: 256mb
 ```
 
 Valid values are `always` (slower, safest), `everysec` (happy medium), or `no` (let the filesystem flush data when it wants, most risky).
@@ -121,12 +137,18 @@ redis_package: "redis-server"
 
 ```yaml
 redis_requirepass: ""
+redis_acl_users: []
 ```
 
 Set a password to require authentication to Redis. You can generate a strong password using `echo "my_password_here" | sha256sum`.
+If `redis_acl_users` is set, ACL directives are rendered and `requirepass` becomes a fallback.
 
 ```yaml
-redis_disabled_commands: []
+redis_disabled_commands:
+  - FLUSHALL
+  - FLUSHDB
+  - CONFIG
+  - SHUTDOWN
 ```
 
 For extra security, you can disable certain Redis commands (this is especially important if Redis is publicly accessible). For example:
@@ -148,6 +170,29 @@ redis_extra_config: |-
 ```
 
 Extra Redis configuration lines that will be appended to the end of the `redis.conf` file.
+
+### System tuning
+
+The role can also manage host tuning for Redis:
+
+```yaml
+redis_manage_system_tuning: true
+redis_sysctl_settings:
+  vm.overcommit_memory: "1"
+  net.core.somaxconn: "1024"
+
+redis_disable_thp: true
+redis_thp_enabled_value: "never"
+redis_thp_defrag_value: "never"
+
+redis_manage_systemd_override: true
+redis_systemd_limit_nofile: 100000
+redis_systemd_umask: "007"
+```
+
+- Sysctl settings are persisted in `/etc/sysctl.d/99-redis.conf` and applied with `sysctl --system`.
+- THP disable is persisted via a dedicated systemd oneshot service.
+- Redis unit limits are managed through `/etc/systemd/system/<redis-service>.service.d/override.conf`.
 
 ## Dependencies
 

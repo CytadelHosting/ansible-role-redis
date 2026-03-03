@@ -1,0 +1,12 @@
+[Unit]
+Description=Disable Transparent Huge Pages (THP)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'echo {{ redis_thp_enabled_value }} > /sys/kernel/mm/transparent_hugepage/enabled'
+ExecStart=/bin/sh -c 'echo {{ redis_thp_defrag_value }} > /sys/kernel/mm/transparent_hugepage/defrag'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
