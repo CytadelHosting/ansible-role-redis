@@ -1,3 +1,138 @@
+# Synchronisation upstream et releases Cytadel
+
+Ce document définit le workflow Git standard pour ce fork du role Redis.
+
+## Principes
+
+- La branche `main` (ou `master` selon le projet source) est **read-only**.
+- Cette branche sert uniquement a synchroniser l'etat du projet source (`upstream`).
+- La branche de travail et de release Cytadel est `cytadel-release`.
+- Aucune Merge Request n'est necessaire vers le projet source.
+
+## Configuration initiale des remotes
+
+Verifier les remotes:
+
+```bash
+git remote -v
+```
+
+Si necessaire:
+
+```bash
+git remote add upstream <UPSTREAM_GIT_URL>
+git remote set-url origin <YOUR_FORK_GIT_URL>
+```
+
+- `upstream` = depot source du role
+- `origin` = votre fork Cytadel
+
+## Synchroniser la branche source read-only
+
+Utiliser `main` **ou** `master` selon la branche par defaut du projet source.
+Exemple avec `main`:
+
+```bash
+git checkout main
+git fetch upstream --tags
+git reset --hard upstream/main
+git push origin main --force-with-lease
+```
+
+Exemple equivalent si la branche source est `master`:
+
+```bash
+git checkout master
+git fetch upstream --tags
+git reset --hard upstream/master
+git push origin master --force-with-lease
+```
+
+Notes:
+
+- Ce reset est volontaire ici car la branche est read-only et miroir de `upstream`.
+- `--force-with-lease` est utilise uniquement pour realigner la branche miroir du fork.
+
+## Maintenir la branche Cytadel
+
+Initialisation (une seule fois):
+
+```bash
+# Si upstream suit main
+git checkout -B cytadel-release upstream/main
+git push -u origin cytadel-release
+```
+
+ou:
+
+```bash
+# Si upstream suit master
+git checkout -B cytadel-release upstream/master
+git push -u origin cytadel-release
+```
+
+Workflow courant:
+
+```bash
+git checkout cytadel-release
+git fetch upstream --tags
+
+# Rebase de la branche Cytadel sur la derniere source
+# (choisir upstream/main ou upstream/master)
+git rebase upstream/main
+
+# Developpement local
+git add .
+git commit -m "Redis: <message clair>"
+
+# Publication sur le fork
+git push origin cytadel-release
+```
+
+## Convention de tagging Cytadel
+
+Format impose:
+
+- `vX.Y.Z-cytadel.k`
+
+Ou:
+
+- `X.Y.Z` = version upstream de reference (dernier tag source synchronise)
+- `k` = numero d'ordre des releases Cytadel basees sur ce meme `X.Y.Z`
+
+Exemples:
+
+- `v7.2.5-cytadel.1` : premiere release Cytadel basee sur upstream `v7.2.5`
+- `v7.2.5-cytadel.2` : deuxieme release Cytadel sur la meme base upstream
+- `v7.2.6-cytadel.1` : nouvelle base upstream, compteur `k` reinitialise a `1`
+
+## Procedure de release et tag
+
+Toujours tagger depuis `cytadel-release`:
+
+```bash
+git checkout cytadel-release
+git pull --rebase origin cytadel-release
+git tag -a vX.Y.Z-cytadel.k -m "Cytadel Redis role release vX.Y.Z-cytadel.k"
+git push origin cytadel-release
+git push origin vX.Y.Z-cytadel.k
+```
+
+Optionnel (si plusieurs tags locaux a pousser):
+
+```bash
+git push origin --tags
+```
+
+## Regles de gouvernance conseillees
+
+- Ne jamais developper directement sur `main`/`master`.
+- Tout commit fonctionnel va sur `cytadel-release`.
+- Un tag de release pointe toujours un commit de `cytadel-release`.
+- Documenter dans le message de tag les changements Redis importants:
+  - securite (`ACL`, `protected-mode`, commandes desactivees)
+  - tuning systeme (`sysctl`, `THP`, `systemd`)
+  - changements de comportements par defaut
 # Synchronisation Upstream - Fork Nginx
 
 ## Pourquoi ce fork existe
