@@ -206,6 +206,91 @@ None.
     - role: geerlingguy.redis
 ```
 
+## Git workflow (fork without PR)
+
+This workflow is designed for a maintained fork where you pull updates from the upstream project, keep your custom changes, and publish only to your own repository.
+
+### 1) Configure remotes once
+
+Use `origin` for your own fork and `upstream` for the source project:
+
+```bash
+git remote -v
+git remote add upstream <UPSTREAM_GIT_URL>
+git remote set-url origin <YOUR_FORK_GIT_URL>
+```
+
+### 2) Pull updates from upstream into your main branch
+
+```bash
+git checkout main
+git fetch upstream --tags
+git rebase upstream/main
+git push origin main
+```
+
+This keeps `main` aligned with upstream while preserving a linear history.
+
+### 3) Work on your role changes and push to your repo
+
+```bash
+git checkout -b feat/redis-modernization
+# edit files
+git add .
+git commit -m "Modernize Redis role defaults and host tuning"
+git push -u origin feat/redis-modernization
+```
+
+If you do not need pull requests at all, you can work directly on `main` and push to `origin/main`.
+
+### 4) Integrate branch into main (no MR)
+
+```bash
+git checkout main
+git pull --rebase origin main
+git merge --ff-only feat/redis-modernization
+git push origin main
+```
+
+`--ff-only` prevents accidental merge commits and keeps history clean.
+
+### 5) Tagging and push tags
+
+Create annotated tags (recommended):
+
+```bash
+git checkout main
+git pull --rebase origin main
+git tag -a v1.4.0 -m "Redis role: modern defaults + system tuning"
+git push origin v1.4.0
+```
+
+To push all local tags:
+
+```bash
+git push origin --tags
+```
+
+### Recommended tagging convention
+
+Use semantic versioning:
+
+- `vMAJOR.MINOR.PATCH` (example: `v1.4.0`)
+- MAJOR: breaking behavior change (default values or behavior incompatible with previous role usage)
+- MINOR: backward-compatible feature (new variables, new optional tuning, safer defaults with opt-out)
+- PATCH: backward-compatible fix (bugfix, typo, docs-only, idempotency fix)
+
+Optional pre-release tags when needed:
+
+- `v1.5.0-rc.1` for release candidates
+- `v1.5.0-beta.1` for beta validation
+
+Practical release examples for this role:
+
+- `v2.0.0`: default ACL policy changed in a breaking way
+- `v1.4.0`: add THP/systemd/sysctl management features
+- `v1.4.1`: fix handler ordering or template rendering bug
+
 ## License
 
 MIT / BSD
