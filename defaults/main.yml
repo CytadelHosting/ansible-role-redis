@@ -41,7 +41,7 @@ redis_lazyfree_lazy_eviction: "yes"
 redis_lazyfree_lazy_expire: "yes"
 redis_lazyfree_lazy_server_del: "yes"
 redis_lazyfree_lazy_user_del: "yes"
-redis_activedefrag: "yes"
+redis_activedefrag: "no"
 
 redis_appendonly: "yes"
 redis_appendfsync: "everysec"

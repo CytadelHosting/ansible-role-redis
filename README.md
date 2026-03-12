@@ -88,8 +88,12 @@ redis_lazyfree_lazy_eviction: "yes"
 redis_lazyfree_lazy_expire: "yes"
 redis_lazyfree_lazy_server_del: "yes"
 redis_lazyfree_lazy_user_del: "yes"
-redis_activedefrag: "yes"
+redis_activedefrag: "no"
 ```
+
+Note:
+
+- `redis_activedefrag` is `no` by default for portability. Some distro Redis builds fail to start with `activedefrag yes` unless compiled with the expected jemalloc variant.
 
 ### Security/authentication
 
