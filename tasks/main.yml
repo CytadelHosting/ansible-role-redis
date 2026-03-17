@@ -59,6 +59,7 @@
     - redis_manage_system_tuning
     - redis_disable_thp
     - ansible_service_mgr == "systemd"
+  ignore_errors: '{{ ansible_check_mode }}'
 
 - name: Ensure Redis systemd drop-in directory exists.
   file:
@@ -86,3 +87,4 @@
     name: "{{ redis_daemon }}"
     state: started
     enabled: "{{ redis_enabled }}"
+  ignore_errors: '{{ ansible_check_mode }}'
