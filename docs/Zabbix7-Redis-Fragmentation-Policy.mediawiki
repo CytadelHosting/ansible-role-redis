@@ -1,0 +1,136 @@
+= Zabbix 7 - Redis memory fragmentation (politique Cytadel) =
+
+== Objectif ==
+
+* Conserver le template officiel ''Redis by Zabbix agent 2'' intact.
+* Ajouter une logique anti faux-positifs via un template wrapper Cytadel.
+* Neutraliser le trigger officiel base uniquement sur le ratio.
+
+----
+
+== 1) Creer le template wrapper ==
+
+# Aller dans '''Data collection -> Templates'''
+# Cliquer sur '''Create template'''
+# Renseigner :
+## '''Template name''' : <code>Redis by Zabbix agent 2 - Cytadel</code>
+## '''Template groups''' : votre groupe standard (ex: <code>Templates/Applications</code>)
+# Cliquer sur '''Add''' puis '''Save'''
+
+----
+
+== 2) Lier le template officiel au wrapper ==
+
+# Ouvrir le template <code>Redis by Zabbix agent 2 - Cytadel</code>
+# Onglet '''Linked templates'''
+# Cliquer sur '''Add'''
+# Selectionner <code>Redis by Zabbix agent 2</code>
+# Cliquer sur '''Select''' puis '''Update'''
+
+----
+
+== 3) Ajouter les macros Cytadel ==
+
+Dans le template <code>Redis by Zabbix agent 2 - Cytadel</code> :
+
+# Onglet '''Macros'''
+# Ajouter les macros suivantes :
+
+<pre>
+{$REDIS.MEM.FRAG_RATIO.MAX.WARN} = 99
+{$CT_REDIS.MEM.FRAG_RATIO.MAX.WARN} = 1.8
+{$CT_REDIS.MEM.USED.MIN.WARN} = 134217728
+{$CT_REDIS.MEM.FRAG_BYTES.MIN.WARN} = 134217728
+</pre>
+
+Explications :
+
+* <code>{$REDIS.MEM.FRAG_RATIO.MAX.WARN}=99</code> neutralise l'ancien trigger officiel (ratio seul).
+* Les macros <code>{$CT_REDIS.*}</code> pilotent le nouveau trigger Cytadel.
+
+----
+
+== 4) Creer le trigger Cytadel ==
+
+# Dans le template wrapper, onglet '''Triggers'''
+# Cliquer sur '''Create trigger'''
+# Renseigner :
+## '''Name''' : <code>Redis: Memory fragmentation is too high (Cytadel policy)</code>
+## '''Severity''' : <code>Warning</code>
+# Coller l'expression suivante :
+
+<pre>
+min(/Redis by Zabbix agent 2 - Cytadel/redis.memory.fragmentation_ratio,15m)>{$CT_REDIS.MEM.FRAG_RATIO.MAX.WARN}
+and
+min(/Redis by Zabbix agent 2 - Cytadel/redis.memory.used_memory,15m)>{$CT_REDIS.MEM.USED.MIN.WARN}
+and
+(min(/Redis by Zabbix agent 2 - Cytadel/redis.memory.used_memory_rss,15m)-max(/Redis by Zabbix agent 2 - Cytadel/redis.memory.used_memory,15m))>{$CT_REDIS.MEM.FRAG_BYTES.MIN.WARN}
+</pre>
+
+# Cliquer sur '''Add'''
+
+----
+
+== 5) Attacher les hotes au wrapper ==
+
+Pour chaque hote Redis :
+
+# Aller dans '''Data collection -> Hosts -> <host>'''
+# Onglet '''Templates'''
+# Ajouter <code>Redis by Zabbix agent 2 - Cytadel</code>
+# Retirer le lien direct <code>Redis by Zabbix agent 2</code> (si present)
+# Cliquer sur '''Update'''
+
+Important :
+
+* Le template officiel reste utilise ''via le wrapper''.
+
+----
+
+== 6) Verifier le fonctionnement ==
+
+# Aller dans '''Monitoring -> Latest data'''
+# Filtrer sur l'hote Redis
+# Verifier ces items :
+## <code>redis.memory.fragmentation_ratio</code>
+## <code>redis.memory.used_memory</code>
+## <code>redis.memory.used_memory_rss</code>
+# Aller dans '''Monitoring -> Problems'''
+## L'ancien trigger officiel ne doit plus spammer.
+## Le nouveau trigger Cytadel doit declencher uniquement sur cas reels.
+
+----
+
+== 7) Perennite (recommandee) ==
+
+* Ne jamais modifier directement le template officiel.
+* Versionner le wrapper dans Git :
+** '''Data collection -> Templates -> Export'''
+** Exporter <code>Redis by Zabbix agent 2 - Cytadel</code> en YAML
+** Commit dans votre repo observabilite/infra
+* Lors des updates du template officiel :
+** mettre a jour l'officiel,
+** conserver le wrapper Cytadel (et ajuster seulement vos macros/trigger si besoin).
+
+----
+
+== 8) Seuils recommandes ==
+
+Pour eviter les faux positifs sur petits Redis :
+
+* Ratio : <code>1.8</code>
+* Used memory minimum : <code>128 MB</code> (<code>134217728</code>)
+* Fragmentation absolue minimum : <code>128 MB</code> (<code>134217728</code>)
+
+Variante stricte prod :
+
+* Ratio : <code>2.0</code>
+* Used memory minimum : <code>256 MB</code>
+* Fragmentation absolue minimum : <code>256 MB</code>
+
+----
+
+== Notes ==
+
+* Si votre nom de template differe, adapter le chemin d'items dans l'expression du trigger.
+* Cette politique cible explicitement les faux positifs de type : ''ratio eleve mais faible memoire absolue''.
